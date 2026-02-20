@@ -1,0 +1,2 @@
+# NOTE: swc_ast_unknown cfg requires swc_core >= 47.
+# For swc_core 36 (compatible with Next.js 15.5.x), do NOT enable it.

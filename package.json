@@ -1,0 +1,28 @@
+{
+  "name": "swc-plugin-react-source-string",
+  "version": "0.1.0",
+  "description": "SWC plugin that adds data-source attributes to JSX elements (React/UI components and HTML elements) for debugging",
+  "main": "swc_plugin_react_source_string.wasm",
+  "files": [
+    "swc_plugin_react_source_string.wasm",
+    "README.md"
+  ],
+  "keywords": [
+    "swc",
+    "swc-plugin",
+    "react",
+    "jsx",
+    "data-source",
+    "debug",
+    "nextjs"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tanchu/swc-plugin-react-source.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tanchu/swc-plugin-react-source/issues"
+  },
+  "homepage": "https://github.com/tanchu/swc-plugin-react-source#readme"
+}
