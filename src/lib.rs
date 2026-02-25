@@ -48,7 +48,6 @@ fn parse_config(metadata: &TransformPluginProgramMetadata) -> ParsedConfig {
     }
 }
 
-/// Returns path relative to cwd. Uses forward slashes (WASM path is unix-style).
 fn relative_path(cwd: &str, filename: &str) -> String {
     let cwd = cwd.trim_end_matches('/');
     let filename = filename.replace('\\', "/");

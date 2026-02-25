@@ -1,0 +1,11 @@
+/Users/jaroslavbarov/projects/swc-plugin-react-source/target/wasm32-wasip1/debug/deps/rend-acaa6a87bd765d2b.d: /Users/jaroslavbarov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rend-0.5.3/src/lib.rs /Users/jaroslavbarov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rend-0.5.3/src/common.rs /Users/jaroslavbarov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rend-0.5.3/src/context.rs /Users/jaroslavbarov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rend-0.5.3/src/traits.rs /Users/jaroslavbarov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rend-0.5.3/src/util.rs /Users/jaroslavbarov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rend-0.5.3/src/unaligned.rs /Users/jaroslavbarov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rend-0.5.3/src/../example.md
+
+/Users/jaroslavbarov/projects/swc-plugin-react-source/target/wasm32-wasip1/debug/deps/librend-acaa6a87bd765d2b.rmeta: /Users/jaroslavbarov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rend-0.5.3/src/lib.rs /Users/jaroslavbarov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rend-0.5.3/src/common.rs /Users/jaroslavbarov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rend-0.5.3/src/context.rs /Users/jaroslavbarov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rend-0.5.3/src/traits.rs /Users/jaroslavbarov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rend-0.5.3/src/util.rs /Users/jaroslavbarov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rend-0.5.3/src/unaligned.rs /Users/jaroslavbarov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rend-0.5.3/src/../example.md
+
+/Users/jaroslavbarov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rend-0.5.3/src/lib.rs:
+/Users/jaroslavbarov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rend-0.5.3/src/common.rs:
+/Users/jaroslavbarov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rend-0.5.3/src/context.rs:
+/Users/jaroslavbarov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rend-0.5.3/src/traits.rs:
+/Users/jaroslavbarov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rend-0.5.3/src/util.rs:
+/Users/jaroslavbarov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rend-0.5.3/src/unaligned.rs:
+/Users/jaroslavbarov/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rend-0.5.3/src/../example.md:
