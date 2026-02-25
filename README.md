@@ -41,7 +41,11 @@ export default nextConfig;
 > ```ts
 > swcPlugins: [
 >   ...(process.env.NODE_ENV === "development"
->     ? [["swc-plugin-react-source-string", { excluded: ["Fragment"], root: process.cwd() }] as const]
+>     ? [["swc-plugin-react-source-string", { 
+              excluded: ["Fragment"], 
+              root: process.cwd() 
+          }]
+        ]
 >     : []),
 > ],
 > ```
@@ -72,6 +76,7 @@ When `root` is provided, file paths are relative to the project root. Without it
 ### Before
 
 ```tsx
+// Example.jsx
 <div className="wrapper">
   <Pencil size={16} />
   <Dialog open={isOpen}>
@@ -82,12 +87,14 @@ When `root` is provided, file paths are relative to the project root. Without it
 
 ### After
 
-```tsx
+```html
+// rendered html 
 <div className="wrapper" data-source="src/components/Example.tsx:1">
-  <Pencil size={16} data-source="src/components/Example.tsx:2" />
-  <Dialog open={isOpen} data-source="src/components/Example.tsx:3">
-    <DialogContent data-source="src/components/Example.tsx:4">Hello</DialogContent>
-  </Dialog>
+  <svg xmlns="http://www.w3.org/2000/svg" width="24"  data-source="src/components/Example.tsx:2">
+  </svg>
+  <div data-source="src/components/Example.tsx:3">
+    <div data-source="src/components/Example.tsx:4">Hello</div>
+  </div>
 </div>
 ```
 
