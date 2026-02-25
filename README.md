@@ -1,6 +1,6 @@
 # swc-plugin-react-source-string
 
-SWC plugin that adds `data-source="path:line"` attributes to JSX elements for debugging. Works with both HTML elements and configured UI library components.
+SWC plugin that adds `data-source="path:line"` attributes to **every JSX element** for debugging — HTML tags, React components, icons, anything.
 
 Rust-based equivalent of [babel-plugin-react-source-string](https://github.com/tanchu/babel-plugin-react-source-string) — designed for use with Next.js SWC compiler.
 
@@ -24,12 +24,8 @@ const nextConfig: NextConfig = {
       [
         "swc-plugin-react-source-string",
         {
-          libraries: [
-            "@radix-ui/react-dialog",
-            "@radix-ui/react-slot",
-            "lucide-react",
-          ],
           excluded: ["Fragment", "Slot"],
+          root: process.cwd(),
         },
       ],
     ],
@@ -45,42 +41,39 @@ export default nextConfig;
 > ```ts
 > swcPlugins: [
 >   ...(process.env.NODE_ENV === "development"
->     ? [["swc-plugin-react-source-string", { libraries: [...], excluded: [...] }] as const]
+>     ? [["swc-plugin-react-source-string", { excluded: ["Fragment"], root: process.cwd() }] as const]
 >     : []),
 > ],
 > ```
 
 ## Plugin options
 
-| Option      | Type       | Default | Description                                                                                          |
-| ----------- | ---------- | ------- | ---------------------------------------------------------------------------------------------------- |
-| `libraries` | `string[]` | `[]`    | Package names (or prefixes) to treat as UI libraries. Imports from these packages get `data-source`. |
-| `excluded`  | `string[]` | `[]`    | Component/element names to skip (case-insensitive).                                                  |
+| Option     | Type       | Default | Description                                              |
+| ---------- | ---------- | ------- | -------------------------------------------------------- |
+| `excluded` | `string[]` | `[]`    | Component/element names to skip (case-insensitive).      |
+| `root`     | `string`   | —       | Optional. Project root for relative paths (use `process.cwd()`). Without it paths will be absolute. |
 
 ### Example config
 
 ```json
 {
-  "libraries": [
-    "@radix-ui/react-dialog",
-    "@radix-ui/react-slot",
-    "lucide-react"
-  ],
   "excluded": ["Fragment", "Slot"]
 }
 ```
 
 ## How it works
 
-1. **HTML elements** (lowercase JSX tags like `<div>`, `<span>`) always receive a `data-source` attribute.
-2. **UI library components** — when a component is imported from a package listed in `libraries`, its JSX usage gets `data-source` too.
-3. **Excluded names** — tags/components listed in `excluded` are skipped (case-insensitive).
-4. The attribute value is `relative/path/to/file.tsx:line`, making it easy to locate the source from DevTools.
+The plugin adds a `data-source` attribute to **every** JSX opening element — both HTML tags (`<div>`, `<span>`) and React components (`<Dialog>`, `<Pencil>`, `<Link>`). Elements listed in `excluded` are skipped.
+
+The attribute value is `relative/path/to/file.tsx:line`, making it easy to locate any DOM node back to its source from DevTools.
+
+When `root` is provided, file paths are relative to the project root. Without it, the plugin falls back to the SWC experimental context `cwd`, or uses absolute paths.
 
 ### Before
 
 ```tsx
 <div className="wrapper">
+  <Pencil size={16} />
   <Dialog open={isOpen}>
     <DialogContent>Hello</DialogContent>
   </Dialog>
@@ -90,12 +83,17 @@ export default nextConfig;
 ### After
 
 ```tsx
-<div className="wrapper" data-source="src/components/Example.tsx:3">
-  <Dialog open={isOpen} data-source="src/components/Example.tsx:4">
-    <DialogContent data-source="src/components/Example.tsx:5">Hello</DialogContent>
+<div className="wrapper" data-source="src/components/Example.tsx:1">
+  <Pencil size={16} data-source="src/components/Example.tsx:2" />
+  <Dialog open={isOpen} data-source="src/components/Example.tsx:3">
+    <DialogContent data-source="src/components/Example.tsx:4">Hello</DialogContent>
   </Dialog>
 </div>
 ```
+
+> Components that spread props to their root element (e.g. lucide-react icons,
+> Radix UI primitives, Next.js `<Link>`) will forward `data-source` to the DOM.
+> Components that don't — simply ignore the extra prop; no runtime errors.
 
 ## Compatibility
 
@@ -131,7 +129,7 @@ import path from "path";
 swcPlugins: [
   [
     path.resolve(__dirname, "./target/wasm32-wasip1/release/swc_plugin_react_source_string.wasm"),
-    { libraries: ["@radix-ui/react-dialog"], excluded: ["Fragment"] },
+    { excluded: ["Fragment"], root: process.cwd() },
   ],
 ],
 ```

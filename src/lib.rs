@@ -11,28 +11,41 @@ use swc_core::plugin::{plugin_transform, proxies::TransformPluginProgramMetadata
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PluginConfig {
-    libraries: Option<Vec<String>>,
     excluded: Option<Vec<String>>,
+    root: Option<String>,
 }
 
-fn parse_config(metadata: &TransformPluginProgramMetadata) -> (HashSet<String>, HashSet<String>) {
+struct ParsedConfig {
+    excluded: HashSet<String>,
+    root: Option<String>,
+}
+
+fn parse_config(metadata: &TransformPluginProgramMetadata) -> ParsedConfig {
     let config_str = match metadata.get_transform_plugin_config() {
         Some(s) => s,
-        None => return (HashSet::new(), HashSet::new()),
+        None => {
+            return ParsedConfig {
+                excluded: HashSet::new(),
+                root: None,
+            }
+        }
     };
     let config: PluginConfig = match serde_json::from_str(&config_str) {
         Ok(c) => c,
-        Err(_) => return (HashSet::new(), HashSet::new()),
+        Err(_) => {
+            return ParsedConfig {
+                excluded: HashSet::new(),
+                root: None,
+            }
+        }
     };
-    let libraries = config
-        .libraries
-        .map(|v| v.into_iter().collect())
-        .unwrap_or_default();
-    let excluded = config
-        .excluded
-        .map(|v| v.into_iter().map(|s| s.to_lowercase()).collect())
-        .unwrap_or_default();
-    (libraries, excluded)
+    ParsedConfig {
+        excluded: config
+            .excluded
+            .map(|v| v.into_iter().map(|s| s.to_lowercase()).collect())
+            .unwrap_or_default(),
+        root: config.root,
+    }
 }
 
 /// Returns path relative to cwd. Uses forward slashes (WASM path is unix-style).
@@ -47,27 +60,24 @@ fn relative_path(cwd: &str, filename: &str) -> String {
 }
 
 struct ReactSourceStringVisitor {
-    libraries: HashSet<String>,
     excluded: HashSet<String>,
-    ui_imports: HashSet<String>,
     source_map: swc_core::plugin::proxies::PluginSourceMapProxy,
     cwd: Option<String>,
 }
 
 impl ReactSourceStringVisitor {
     fn new(
-        libraries: HashSet<String>,
-        excluded: HashSet<String>,
+        config: ParsedConfig,
         source_map: swc_core::plugin::proxies::PluginSourceMapProxy,
         metadata: &TransformPluginProgramMetadata,
     ) -> Self {
-        let cwd = metadata
-            .get_experimental_context("cwd")
-            .filter(|s| !s.is_empty());
+        let cwd = config.root.filter(|s| !s.is_empty()).or_else(|| {
+            metadata
+                .get_experimental_context("cwd")
+                .filter(|s| !s.is_empty())
+        });
         Self {
-            libraries,
-            excluded,
-            ui_imports: HashSet::new(),
+            excluded: config.excluded,
             source_map,
             cwd,
         }
@@ -76,10 +86,7 @@ impl ReactSourceStringVisitor {
     fn jsx_element_name_str(name: &JSXElementName) -> Option<String> {
         match name {
             JSXElementName::Ident(i) => Some(i.sym.to_string()),
-            JSXElementName::JSXMemberExpr(m) => {
-                // e.g. React.Button -> "Button" (prop is IdentName)
-                Some(m.prop.sym.to_string())
-            }
+            JSXElementName::JSXMemberExpr(m) => Some(m.prop.sym.to_string()),
             JSXElementName::JSXNamespacedName(n) => Some(n.name.sym.to_string()),
             #[cfg(swc_ast_unknown)]
             _ => panic!("unknown JSXElementName"),
@@ -127,28 +134,6 @@ impl ReactSourceStringVisitor {
 }
 
 impl VisitMut for ReactSourceStringVisitor {
-    fn visit_mut_import_decl(&mut self, decl: &mut ImportDecl) {
-        let source = decl.src.value.to_string();
-        let in_libs = self.libraries.contains(&source)
-            || self
-                .libraries
-                .contains(source.split('/').next().unwrap_or(""));
-        if in_libs {
-            for spec in &decl.specifiers {
-                let local = match spec {
-                    ImportSpecifier::Named(s) => &s.local,
-                    ImportSpecifier::Default(s) => &s.local,
-                    ImportSpecifier::Namespace(s) => &s.local,
-                };
-                let name = local.sym.to_string();
-                if !self.excluded.contains(&name.to_lowercase()) {
-                    self.ui_imports.insert(name);
-                }
-            }
-        }
-        decl.visit_mut_children_with(self);
-    }
-
     fn visit_mut_jsx_opening_element(&mut self, el: &mut JSXOpeningElement) {
         el.visit_mut_children_with(self);
 
@@ -156,13 +141,8 @@ impl VisitMut for ReactSourceStringVisitor {
             Some(n) => n,
             None => return,
         };
-        let name_lower = element_name.to_lowercase();
-        if self.excluded.contains(&name_lower) {
-            return;
-        }
-        let is_lowercase = element_name == name_lower;
-        let is_ui_import = self.ui_imports.contains(&element_name);
-        if !is_lowercase && !is_ui_import {
+
+        if self.excluded.contains(&element_name.to_lowercase()) {
             return;
         }
 
@@ -178,9 +158,9 @@ impl VisitMut for ReactSourceStringVisitor {
 
 #[plugin_transform]
 pub fn process_transform(program: Program, metadata: TransformPluginProgramMetadata) -> Program {
-    let (libraries, excluded) = parse_config(&metadata);
+    let config = parse_config(&metadata);
     let source_map = metadata.source_map.clone();
-    let mut visitor = ReactSourceStringVisitor::new(libraries, excluded, source_map, &metadata);
+    let mut visitor = ReactSourceStringVisitor::new(config, source_map, &metadata);
     let mut program = program;
     program.visit_mut_with(&mut visitor);
     program
