@@ -19,7 +19,7 @@ jobs:
         with:
           release-type: rust
           include-component-in-tag: false
-          token: ${{ secrets.CI_GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   publish:
     if: github.event_name == 'release'
