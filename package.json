@@ -1,6 +1,6 @@
 {
   "name": "swc-plugin-react-source-string",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "SWC plugin that adds data-source attributes to JSX elements (React/UI components and HTML elements) for debugging",
   "main": "swc_plugin_react_source_string.wasm",
   "files": [
