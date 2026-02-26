@@ -35,20 +35,20 @@ const nextConfig: NextConfig = {
 export default nextConfig;
 ```
 
-> **Tip:** You probably only want this in development. Wrap the plugin entry
-> with a condition:
->
-> ```ts
-> swcPlugins: [
->   ...(process.env.NODE_ENV === "development"
->     ? [["swc-plugin-react-source-string", { 
-              excluded: ["Fragment"], 
-              root: process.cwd() 
-          }]
-        ]
->     : []),
-> ],
-> ```
+ **Tip:** You probably only want this in development. Wrap the plugin entry
+ with a condition:
+
+ ```ts
+ swcPlugins: [
+   ...(process.env.NODE_ENV === "development"
+     ? [["swc-plugin-react-source-string", { 
+            excluded: ["Fragment"], 
+            root: process.cwd() 
+         }]
+       ]
+     : []),
+ ],
+ ```
 
 ## Plugin options
 
