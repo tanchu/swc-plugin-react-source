@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/tanchu/swc-plugin-react-source/compare/swc-plugin-react-source-string-v0.2.2...swc-plugin-react-source-string-v0.2.3) (2026-02-26)
+
+
+### Bug Fixes
+
+* update README.md ([5374841](https://github.com/tanchu/swc-plugin-react-source/commit/53748414be0135c8bb73b82686d8cd408649eeab))
+
 ## [0.2.2](https://github.com/tanchu/swc-plugin-react-source/compare/swc-plugin-react-source-string-v0.2.1...swc-plugin-react-source-string-v0.2.2) (2026-02-25)
 
 
