@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.4](https://github.com/tanchu/swc-plugin-react-source/compare/swc-plugin-react-source-string-v0.2.3...swc-plugin-react-source-string-v0.2.4) (2026-04-24)
+
+
+### Bug Fixes
+
+* strip Turbopack virtual path prefix from source locations ([0ac0738](https://github.com/tanchu/swc-plugin-react-source/commit/0ac073862ff655e19d9b6db8913d385d37cdc9ba))
+
 ## [0.2.3](https://github.com/tanchu/swc-plugin-react-source/compare/swc-plugin-react-source-string-v0.2.2...swc-plugin-react-source-string-v0.2.3) (2026-02-26)
 
 
