@@ -48,6 +48,15 @@ fn parse_config(metadata: &TransformPluginProgramMetadata) -> ParsedConfig {
     }
 }
 
+fn strip_virtual_prefix(filename: &str) -> &str {
+    if filename.starts_with('[') {
+        if let Some(pos) = filename.find("]/") {
+            return &filename[pos + 2..];
+        }
+    }
+    filename
+}
+
 fn relative_path(cwd: &str, filename: &str) -> String {
     let cwd = cwd.trim_end_matches('/');
     let filename = filename.replace('\\', "/");
@@ -109,12 +118,13 @@ impl ReactSourceStringVisitor {
         }
         let loc = self.source_map.lookup_char_pos(span.lo);
         let line = loc.line;
-        let filename = loc.file.name.to_string().replace('\\', "/");
+        let raw_filename = loc.file.name.to_string().replace('\\', "/");
+        let filename = strip_virtual_prefix(&raw_filename);
         let relative = self
             .cwd
             .as_ref()
-            .map(|cwd| relative_path(cwd, &filename))
-            .unwrap_or(filename);
+            .map(|cwd| relative_path(cwd, filename))
+            .unwrap_or_else(|| filename.to_string());
         let source_value = format!("{relative}:{line}");
         let value = Str {
             span: DUMMY_SP,
