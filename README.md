@@ -2,13 +2,20 @@
 
 SWC plugin that adds `data-source="path:line"` attributes to **every JSX element** for debugging — HTML tags, React components, icons, anything.
 
-Rust-based equivalent of [babel-plugin-react-source-string](https://github.com/tanchu/babel-plugin-react-source-string) — designed for use with Next.js SWC compiler.
+Rust-based equivalent of [babel-plugin-react-source-string](https://github.com/tanchu/babel-plugin-react-source-string) — designed for use with Next.js and Rspack.
 
 ## Installation
 
-```bash
-npm install swc-plugin-react-source-string
-```
+Choose the tag that matches your bundler:
+
+| Bundler | Install command |
+|---|---|
+| **Next.js 16.x** | `npm install swc-plugin-react-source-string@next-16` |
+| **Next.js 15.x** | `npm install swc-plugin-react-source-string@next-15` |
+| **Rspack** | `npm install swc-plugin-react-source-string@rspack` |
+
+> The SWC plugin ABI is tightly coupled to `swc_core` inside the bundler.
+> Using the wrong tag will cause a `Mismatch` error at startup.
 
 ## Usage with Next.js
 
@@ -35,43 +42,31 @@ const nextConfig: NextConfig = {
 export default nextConfig;
 ```
 
- **Tip:** You probably only want this in development. Wrap the plugin entry
- with a condition:
+**Tip:** You probably only want this in development:
 
- ```ts
- swcPlugins: [
-   ...(process.env.NODE_ENV === "development"
-     ? [["swc-plugin-react-source-string", { 
-            excluded: ["Fragment"], 
-            root: process.cwd() 
-         }]
-       ]
-     : []),
- ],
- ```
+```ts
+swcPlugins: [
+  ...(process.env.NODE_ENV === "development"
+    ? [["swc-plugin-react-source-string", {
+          excluded: ["Fragment"],
+          root: process.cwd()
+        }]]
+    : []),
+],
+```
 
 ## Plugin options
 
 | Option     | Type       | Default | Description                                              |
 | ---------- | ---------- | ------- | -------------------------------------------------------- |
 | `excluded` | `string[]` | `[]`    | Component/element names to skip (case-insensitive).      |
-| `root`     | `string`   | —       | Optional. Project root for relative paths (use `process.cwd()`). Without it paths will be absolute. |
-
-### Example config
-
-```json
-{
-  "excluded": ["Fragment", "Slot"]
-}
-```
+| `root`     | `string`   | —       | Project root for relative paths. Use `process.cwd()`. Without it paths will be absolute. |
 
 ## How it works
 
 The plugin adds a `data-source` attribute to **every** JSX opening element — both HTML tags (`<div>`, `<span>`) and React components (`<Dialog>`, `<Pencil>`, `<Link>`). Elements listed in `excluded` are skipped.
 
 The attribute value is `relative/path/to/file.tsx:line`, making it easy to locate any DOM node back to its source from DevTools.
-
-When `root` is provided, file paths are relative to the project root. Without it, the plugin falls back to the SWC experimental context `cwd`, or uses absolute paths.
 
 ### Before
 
@@ -88,9 +83,8 @@ When `root` is provided, file paths are relative to the project root. Without it
 ### After
 
 ```html
-// rendered html 
-<div className="wrapper" data-source="src/components/Example.tsx:1">
-  <svg xmlns="http://www.w3.org/2000/svg" width="24"  data-source="src/components/Example.tsx:2">
+<div class="wrapper" data-source="src/components/Example.tsx:1">
+  <svg xmlns="http://www.w3.org/2000/svg" data-source="src/components/Example.tsx:2">
   </svg>
   <div data-source="src/components/Example.tsx:3">
     <div data-source="src/components/Example.tsx:4">Hello</div>
@@ -102,19 +96,16 @@ When `root` is provided, file paths are relative to the project root. Without it
 > Radix UI primitives, Next.js `<Link>`) will forward `data-source` to the DOM.
 > Components that don't — simply ignore the extra prop; no runtime errors.
 
-## Compatibility
+## Compatibility table
 
-The SWC plugin ABI is tightly coupled to specific versions of `swc_core`, `@swc/core`, and Next.js.
-**You must use the correct combination**, otherwise the plugin will fail to load at runtime.
+Each npm dist-tag is built against the exact `swc_core` version required by that bundler.
+The plugin is automatically updated when the upstream bundler bumps its `swc_core`.
 
-| `swc_core` (Cargo.toml) | Rust toolchain        | `@swc/core`   | Next.js  |
-| ------------------------ | --------------------- | ------------- | -------- |
-| `36.x`                   | `nightly-2025-05-06`  | `1.11.x`      | `15.5.x` |
-
-> To target a different Next.js version, align `swc_core` in `Cargo.toml` with the
-> version from the [official SWC plugins repo](https://github.com/swc-project/plugins)
-> matching your `@swc/core` / `@next/swc` version, and update `rust-toolchain.toml`
-> to match the nightly used at that commit.
+| npm tag | Bundler | `swc_core` | Rust toolchain |
+|---|---|---|---|
+| `next-16` · `latest` | Next.js 16.x | `57.0.0` | `nightly-2025-05-06` |
+| `next-15` | Next.js 15.x | `50.x` | `nightly-2025-05-06` |
+| `rspack` | Rspack latest | varies | `nightly-2025-05-06` |
 
 ## Building from source
 
@@ -127,8 +118,7 @@ cargo build --release --target wasm32-wasip1
 
 Output: `target/wasm32-wasip1/release/swc_plugin_react_source_string.wasm`
 
-To use the local build instead of the npm package, point Next.js config to the
-`.wasm` path directly:
+To use a local build instead of the npm package, point Next.js config directly to the `.wasm` file:
 
 ```ts
 import path from "path";
