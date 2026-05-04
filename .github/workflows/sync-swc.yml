@@ -1,0 +1,121 @@
+name: Sync swc_core versions
+
+# Runs weekly and can be triggered manually for a specific branch.
+# Creates a PR when the upstream framework bumps its swc_core dependency.
+
+on:
+  schedule:
+    - cron: "0 8 * * 1" # every Monday at 08:00 UTC
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to sync (next-15 | next-16 | rspack)"
+        required: false
+        default: ""
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - branch: next-16
+            repo: vercel/next.js
+            version_prefix: "v16."
+          - branch: next-15
+            repo: vercel/next.js
+            version_prefix: "v15."
+          - branch: rspack
+            repo: web-infra-dev/rspack
+            version_prefix: "v"
+
+    steps:
+      - name: Skip if manual trigger targets a different branch
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.branch != '' && github.event.inputs.branch != matrix.branch
+        run: exit 0
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.branch }}
+          fetch-depth: 0
+        # Skip if the branch doesn't exist yet
+        continue-on-error: true
+        id: checkout
+
+      - name: Branch exists check
+        if: steps.checkout.outcome == 'failure'
+        run: |
+          echo "Branch ${{ matrix.branch }} does not exist yet, skipping."
+          exit 0
+
+      - name: Get latest upstream release tag
+        id: upstream
+        run: |
+          PREFIX="${{ matrix.version_prefix }}"
+          TAG=$(curl -s "https://api.github.com/repos/${{ matrix.repo }}/releases?per_page=50" \
+            | jq -r --arg p "$PREFIX" '[.[] | select(.tag_name | startswith($p)) | select(.prerelease == false)] | first | .tag_name')
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Upstream latest: $TAG"
+
+      - name: Extract swc_core version from upstream Cargo.toml
+        id: upstream_swc
+        run: |
+          TAG="${{ steps.upstream.outputs.tag }}"
+          REPO="${{ matrix.repo }}"
+          RAW="https://raw.githubusercontent.com/${REPO}/${TAG}/Cargo.toml"
+          VERSION=$(curl -s "$RAW" | grep -m1 'swc_core\s*=' | grep -oP '"\K[0-9]+\.[0-9]+\.[0-9]+(?=")')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Upstream swc_core: $VERSION"
+
+      - name: Read current swc_core version from plugin
+        id: current_swc
+        run: |
+          VERSION=$(grep -m1 'swc_core\s*=' Cargo.toml | grep -oP '=\K[0-9]+\.[0-9]+\.[0-9]+')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Current swc_core: $VERSION"
+
+      - name: No update needed
+        if: steps.upstream_swc.outputs.version == steps.current_swc.outputs.version
+        run: echo "swc_core is already at ${{ steps.upstream_swc.outputs.version }}, nothing to do."
+
+      - name: Update swc_core in Cargo.toml
+        if: steps.upstream_swc.outputs.version != steps.current_swc.outputs.version
+        run: |
+          NEW="${{ steps.upstream_swc.outputs.version }}"
+          OLD="${{ steps.current_swc.outputs.version }}"
+          sed -i "s/swc_core = { version = \"=${OLD}\"/swc_core = { version = \"=${NEW}\"/" Cargo.toml
+          echo "Updated swc_core: $OLD → $NEW"
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        if: steps.upstream_swc.outputs.version != steps.current_swc.outputs.version
+
+      - name: Update Cargo.lock
+        if: steps.upstream_swc.outputs.version != steps.current_swc.outputs.version
+        run: cargo update swc_core
+
+      - name: Verify build still compiles
+        if: steps.upstream_swc.outputs.version != steps.current_swc.outputs.version
+        run: cargo check --target wasm32-wasip1
+
+      - name: Create Pull Request
+        if: steps.upstream_swc.outputs.version != steps.current_swc.outputs.version
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: ${{ matrix.branch }}
+          branch: "sync-swc/${{ matrix.branch }}"
+          commit-message: "chore: bump swc_core ${{ steps.current_swc.outputs.version }} → ${{ steps.upstream_swc.outputs.version }}"
+          title: "chore(${{ matrix.branch }}): bump swc_core to ${{ steps.upstream_swc.outputs.version }}"
+          body: |
+            ## swc_core version bump
+
+            | | Version |
+            |---|---|
+            | **Before** | `${{ steps.current_swc.outputs.version }}` |
+            | **After** | `${{ steps.upstream_swc.outputs.version }}` |
+
+            **Triggered by:** [${{ matrix.repo }}@${{ steps.upstream.outputs.tag }}](https://github.com/${{ matrix.repo }}/releases/tag/${{ steps.upstream.outputs.tag }})
+
+            CI will verify the build compiles. Merge to release a new patch version.
+          labels: "dependencies,automated"

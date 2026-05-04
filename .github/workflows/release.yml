@@ -2,7 +2,7 @@ name: Release and Publish
 
 on:
   push:
-    branches: [main]
+    branches: [next-15, next-16, rspack]
 
 permissions:
   contents: write
@@ -13,10 +13,12 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
       - uses: googleapis/release-please-action@v5
         id: release
         with:
+          target-branch: ${{ github.ref_name }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -51,7 +53,33 @@ jobs:
       - name: Copy .wasm to package root
         run: cp target/wasm32-wasip1/release/swc_plugin_react_source_string.wasm .
 
+      - name: Determine npm dist-tag
+        id: npm_tag
+        run: |
+          case "${{ github.ref_name }}" in
+            next-16)
+              echo "primary=next-16" >> $GITHUB_OUTPUT
+              echo "also_latest=true"  >> $GITHUB_OUTPUT
+              ;;
+            next-15)
+              echo "primary=next-15" >> $GITHUB_OUTPUT
+              echo "also_latest=false" >> $GITHUB_OUTPUT
+              ;;
+            rspack)
+              echo "primary=rspack"  >> $GITHUB_OUTPUT
+              echo "also_latest=false" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
       - name: Publish to npm
-        run: npm publish --access public
+        run: npm publish --tag ${{ steps.npm_tag.outputs.primary }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Also tag as latest (next-16 only)
+        if: steps.npm_tag.outputs.also_latest == 'true'
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          npm dist-tag add swc-plugin-react-source-string@${VERSION} latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

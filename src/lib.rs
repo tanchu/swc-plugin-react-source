@@ -136,7 +136,7 @@ impl ReactSourceStringVisitor {
             name: JSXAttrName::Ident(
                 Ident::new("data-source".into(), DUMMY_SP, SyntaxContext::empty()).into(),
             ),
-            value: Some(JSXAttrValue::Lit(Lit::Str(value))),
+            value: Some(JSXAttrValue::Str(value)),
         };
         Some(JSXAttrOrSpread::JSXAttr(attr))
     }
