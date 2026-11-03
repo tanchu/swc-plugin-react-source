@@ -10,7 +10,8 @@ Choose the tag that matches your bundler:
 
 | Bundler | Install command |
 |---|---|
-| **Next.js 16.x** | `npm install swc-plugin-react-source-string@next-16` |
+| **Next.js 16.4.x** | `npm install swc-plugin-react-source-string@next-16` |
+| **Next.js 16.1.7 – 16.3.8** | `npm install swc-plugin-react-source-string@0.4.0` |
 | **Next.js 15.x** | `npm install swc-plugin-react-source-string@next-15` |
 | **Rspack** | `npm install swc-plugin-react-source-string@rspack` |
 
@@ -103,11 +104,12 @@ The plugin is automatically updated when the upstream bundler bumps its `swc_cor
 
 | npm tag | Bundler | `swc_core` | Rust toolchain |
 |---|---|---|---|
-| `next-16` · `latest` | Next.js 16.4.5 | `79.0.0` | `nightly-2026-08-20` |
+| `next-16` · `latest` | Next.js 16.4.x | `79.0.0` | `nightly-2026-08-20` |
 | `next-15` | Next.js 15.x | `50.x` | `nightly-2025-05-06` |
 | `rspack` | Rspack latest | varies | `nightly-2025-05-06` |
 
-Earlier Next.js 16 releases built on `swc_core` 57 need `swc-plugin-react-source-string@0.4.0`.
+Next.js 16.4.0 changed the plugin ABI: `0.5.x` fails on 16.3.x with
+`Failed to deserialize program received from host`, and `0.4.0` fails the same way on 16.4.x.
 
 ## Building from source
 
