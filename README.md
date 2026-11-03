@@ -103,9 +103,11 @@ The plugin is automatically updated when the upstream bundler bumps its `swc_cor
 
 | npm tag | Bundler | `swc_core` | Rust toolchain |
 |---|---|---|---|
-| `next-16` · `latest` | Next.js 16.x | `57.0.0` | `nightly-2025-05-06` |
+| `next-16` · `latest` | Next.js 16.4.5 | `79.0.0` | `nightly-2026-08-20` |
 | `next-15` | Next.js 15.x | `50.x` | `nightly-2025-05-06` |
 | `rspack` | Rspack latest | varies | `nightly-2025-05-06` |
+
+Earlier Next.js 16 releases built on `swc_core` 57 need `swc-plugin-react-source-string@0.4.0`.
 
 ## Building from source
 
