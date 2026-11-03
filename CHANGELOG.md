@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/tanchu/swc-plugin-react-source/compare/swc-plugin-react-source-string-v0.5.0...swc-plugin-react-source-string-v0.5.1) (2026-11-03)
+
+
+### Bug Fixes
+
+* declare supported Next.js range in peerDependencies ([96cc17b](https://github.com/tanchu/swc-plugin-react-source/commit/96cc17b2e9c34a607fb721dbbe354327ae5268ff))
+
 ## [0.5.0](https://github.com/tanchu/swc-plugin-react-source/compare/swc-plugin-react-source-string-v0.4.0...swc-plugin-react-source-string-v0.5.0) (2026-11-03)
 
 
