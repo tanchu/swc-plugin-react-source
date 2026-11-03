@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/tanchu/swc-plugin-react-source/compare/swc-plugin-react-source-string-v0.4.0...swc-plugin-react-source-string-v0.5.0) (2026-11-03)
+
+
+### Features
+
+* support Next.js 16.4.5 (swc_core 79) ([f13a86f](https://github.com/tanchu/swc-plugin-react-source/commit/f13a86f1508429dce1c180f64b4696509935d858))
+
 ## [0.4.0](https://github.com/tanchu/swc-plugin-react-source/compare/swc-plugin-react-source-string-v0.3.0...swc-plugin-react-source-string-v0.4.0) (2026-05-04)
 
 
