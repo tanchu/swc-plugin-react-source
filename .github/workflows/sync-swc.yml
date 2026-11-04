@@ -1,7 +1,10 @@
 name: Sync swc_core versions
 
 # Runs weekly and can be triggered manually for a specific branch.
-# Creates a PR when the upstream framework bumps its swc_core dependency.
+# Opens a PR when the upstream framework bumps swc_core, or when its latest
+# release falls outside the plugin's supported `next` peer range.
+#
+# Scheduled runs always use this file from the default branch.
 
 on:
   schedule:
@@ -9,11 +12,36 @@ on:
   workflow_dispatch:
     inputs:
       branch:
-        description: "Branch to sync (next-15 | next-16 | rspack)"
+        description: "Branch to sync (next-15 | next-16 | rspack). Empty = all."
         required: false
         default: ""
+      upstream_version:
+        description: "Test a specific upstream version instead of the latest stable (needs branch)"
+        required: false
+        default: ""
+      dry_run:
+        description: "Run everything except opening the PR"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
+  # GitHub disables scheduled workflows after 60 days without repo activity,
+  # which is how Next.js 16.4 was missed. Re-enabling on each run resets that.
+  keepalive:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Keep this workflow enabled
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/sync-swc.yml/enable"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   sync:
     runs-on: ubuntu-latest
     strategy:
@@ -22,100 +50,232 @@ jobs:
         include:
           - branch: next-16
             repo: vercel/next.js
-            version_prefix: "v16."
+            npm_package: next
+            version_regex: '^16\.[0-9]+\.[0-9]+$'
+            e2e: true
           - branch: next-15
             repo: vercel/next.js
-            version_prefix: "v15."
+            npm_package: next
+            version_regex: '^15\.[0-9]+\.[0-9]+$'
+            e2e: true
           - branch: rspack
             repo: web-infra-dev/rspack
-            version_prefix: "v"
+            npm_package: "@rspack/core"
+            version_regex: '^[0-9]+\.[0-9]+\.[0-9]+$'
+            e2e: false
+
+    env:
+      BRANCH: ${{ matrix.branch }}
 
     steps:
-      - name: Skip if manual trigger targets a different branch
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.branch != '' && github.event.inputs.branch != matrix.branch
-        run: exit 0
+      - name: Check that this branch should be synced
+        id: scope
+        env:
+          REQUESTED: ${{ inputs.branch }}
+        run: |
+          if [ -n "$REQUESTED" ] && [ "$REQUESTED" != "$BRANCH" ]; then
+            echo "Manual run targets $REQUESTED, skipping $BRANCH."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          elif git ls-remote --exit-code --heads "https://github.com/${{ github.repository }}" "$BRANCH" > /dev/null; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Branch $BRANCH does not exist yet, skipping."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: actions/checkout@v4
+        if: steps.scope.outputs.run == 'true'
         with:
           ref: ${{ matrix.branch }}
           fetch-depth: 0
-        # Skip if the branch doesn't exist yet
-        continue-on-error: true
-        id: checkout
 
-      - name: Branch exists check
-        if: steps.checkout.outcome == 'failure'
+      - uses: actions/setup-node@v4
+        if: steps.scope.outputs.run == 'true'
+        with:
+          node-version: "24"
+
+      - name: Compare with upstream
+        id: plan
+        if: steps.scope.outputs.run == 'true'
+        env:
+          UPSTREAM_OVERRIDE: ${{ inputs.branch == matrix.branch && inputs.upstream_version || '' }}
+          NPM_PACKAGE: ${{ matrix.npm_package }}
+          VERSION_REGEX: ${{ matrix.version_regex }}
+          REPO: ${{ matrix.repo }}
         run: |
-          echo "Branch ${{ matrix.branch }} does not exist yet, skipping."
-          exit 0
+          VERSION="$UPSTREAM_OVERRIDE"
+          if [ -z "$VERSION" ]; then
+            VERSION=$(npm view "$NPM_PACKAGE" versions --json | jq -r '.[]' | grep -E "$VERSION_REGEX" | sort -V | tail -1)
+          fi
+          [ -n "$VERSION" ] || { echo "::error::No upstream version found"; exit 1; }
 
-      - name: Get latest upstream release tag
-        id: upstream
+          RAW="https://raw.githubusercontent.com/$REPO/v$VERSION"
+          curl -fsSL "$RAW/Cargo.toml" -o "$RUNNER_TEMP/upstream-cargo.toml"
+          curl -fsSL "$RAW/rust-toolchain.toml" -o "$RUNNER_TEMP/upstream-toolchain.toml"
+
+          SWC=$(grep -m1 -E '^swc_core\s*=' "$RUNNER_TEMP/upstream-cargo.toml" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          TOOLCHAIN=$(grep -m1 -E '^channel\s*=' "$RUNNER_TEMP/upstream-toolchain.toml" | cut -d'"' -f2)
+          CURRENT_SWC=$(grep -m1 -E '^swc_core\s*=' Cargo.toml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          RANGE=$(jq -r '.peerDependencies.next // empty' package.json)
+          PLUGIN_VERSION=$(jq -r '.version' package.json)
+          for value in SWC TOOLCHAIN CURRENT_SWC; do
+            [ -n "${!value}" ] || { echo "::error::Could not determine $value"; exit 1; }
+          done
+
+          MAJOR=${VERSION%%.*}
+          REST=${VERSION#*.}
+          MINOR=${REST%%.*}
+
+          SWC_CHANGED=false
+          [ "$SWC" = "$CURRENT_SWC" ] || SWC_CHANGED=true
+
+          IN_RANGE=true
+          if [ -n "$RANGE" ] && ! npx --yes semver@7.7.3 -r "$RANGE" "$VERSION" > /dev/null; then
+            IN_RANGE=false
+          fi
+
+          NEW_RANGE="$RANGE"
+          LABEL="$MAJOR.$MINOR.x"
+          if [ -n "$RANGE" ]; then
+            if [ "$SWC_CHANGED" = true ]; then
+              # New swc_core: older Next.js releases are assumed incompatible.
+              NEW_RANGE=">=$VERSION <$MAJOR.$((MINOR + 1)).0"
+            elif [ "$IN_RANGE" = false ]; then
+              # Same swc_core: keep the lower bound and extend the upper one.
+              LOWER=${RANGE%% *}
+              NEW_RANGE="$LOWER <$MAJOR.$((MINOR + 1)).0"
+              LOWER_VERSION=${LOWER#>=}
+              LOWER_REST=${LOWER_VERSION#*.}
+              LABEL="$MAJOR.${LOWER_REST%%.*}.x – $MAJOR.$MINOR.x"
+            fi
+          fi
+
+          UPDATE=false
+          if [ "$SWC_CHANGED" = true ] || [ "$IN_RANGE" = false ]; then
+            UPDATE=true
+          fi
+
+          if [ "$SWC_CHANGED" = true ]; then
+            # feat, not fix: a new swc_core drops older bundler releases, and
+            # caret ranges on 0.x must not pick that up automatically.
+            MESSAGE="feat: support $NPM_PACKAGE $VERSION (swc_core $SWC)"
+          else
+            MESSAGE="fix: allow $NPM_PACKAGE $VERSION"
+          fi
+
+          {
+            echo "update=$UPDATE"
+            echo "swc_changed=$SWC_CHANGED"
+            echo "version=$VERSION"
+            echo "swc=$SWC"
+            echo "current_swc=$CURRENT_SWC"
+            echo "toolchain=$TOOLCHAIN"
+            echo "range=$NEW_RANGE"
+            echo "label=$LABEL"
+            echo "message=$MESSAGE"
+            echo "plugin_version=$PLUGIN_VERSION"
+          } >> "$GITHUB_OUTPUT"
+          echo "Upstream $NPM_PACKAGE $VERSION: swc_core $SWC, toolchain $TOOLCHAIN"
+          echo "Plugin: swc_core $CURRENT_SWC, peer range '$RANGE' (in range: $IN_RANGE)"
+          echo "Update needed: $UPDATE"
+
+      - name: Update files
+        if: steps.plan.outputs.update == 'true'
+        env:
+          SWC: ${{ steps.plan.outputs.swc }}
+          TOOLCHAIN: ${{ steps.plan.outputs.toolchain }}
+          RANGE: ${{ steps.plan.outputs.range }}
+          LABEL: ${{ steps.plan.outputs.label }}
         run: |
-          PREFIX="${{ matrix.version_prefix }}"
-          TAG=$(curl -s "https://api.github.com/repos/${{ matrix.repo }}/releases?per_page=50" \
-            | jq -r --arg p "$PREFIX" '[.[] | select(.tag_name | startswith($p)) | select(.prerelease == false)] | first | .tag_name')
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "Upstream latest: $TAG"
-
-      - name: Extract swc_core version from upstream Cargo.toml
-        id: upstream_swc
-        run: |
-          TAG="${{ steps.upstream.outputs.tag }}"
-          REPO="${{ matrix.repo }}"
-          RAW="https://raw.githubusercontent.com/${REPO}/${TAG}/Cargo.toml"
-          VERSION=$(curl -s "$RAW" | grep -m1 'swc_core\s*=' | grep -oP '"\K[0-9]+\.[0-9]+\.[0-9]+(?=")')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Upstream swc_core: $VERSION"
-
-      - name: Read current swc_core version from plugin
-        id: current_swc
-        run: |
-          VERSION=$(grep -m1 'swc_core\s*=' Cargo.toml | grep -oP '=\K[0-9]+\.[0-9]+\.[0-9]+')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Current swc_core: $VERSION"
-
-      - name: No update needed
-        if: steps.upstream_swc.outputs.version == steps.current_swc.outputs.version
-        run: echo "swc_core is already at ${{ steps.upstream_swc.outputs.version }}, nothing to do."
-
-      - name: Update swc_core in Cargo.toml
-        if: steps.upstream_swc.outputs.version != steps.current_swc.outputs.version
-        run: |
-          NEW="${{ steps.upstream_swc.outputs.version }}"
-          OLD="${{ steps.current_swc.outputs.version }}"
-          sed -i "s/swc_core = { version = \"=${OLD}\"/swc_core = { version = \"=${NEW}\"/" Cargo.toml
-          echo "Updated swc_core: $OLD → $NEW"
+          if [ "${{ steps.plan.outputs.swc_changed }}" = true ]; then
+            sed -i -E "s/^(swc_core = \{ version = \"=)[0-9.]+/\1$SWC/" Cargo.toml
+            sed -i -E "s/^(channel = \")[^\"]+/\1$TOOLCHAIN/" rust-toolchain.toml
+          fi
+          if [ -n "$RANGE" ]; then
+            npm pkg set "peerDependencies.next=$RANGE"
+            sed -i -E "/@$BRANCH\`/ s/\*\*Next\.js [^*]*\*\*/**Next.js $LABEL**/" README.md
+            sed -i -E "/^\| \`$BRANCH\`/ s/\| Next\.js [^|]*\| [^|]*\| [^|]*\|/| Next.js $LABEL | \`$SWC\` | \`$(grep -m1 '^channel' rust-toolchain.toml | cut -d'"' -f2)\` |/" README.md
+          fi
 
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-        if: steps.upstream_swc.outputs.version != steps.current_swc.outputs.version
+        if: steps.plan.outputs.update == 'true'
 
       - name: Update Cargo.lock
-        if: steps.upstream_swc.outputs.version != steps.current_swc.outputs.version
+        if: steps.plan.outputs.swc_changed == 'true'
         run: cargo update swc_core
 
-      - name: Verify build still compiles
-        if: steps.upstream_swc.outputs.version != steps.current_swc.outputs.version
-        run: cargo check --target wasm32-wasip1
+      - name: Lint and build
+        if: steps.plan.outputs.update == 'true'
+        run: |
+          cargo clippy --target wasm32-wasip1 -- -D warnings
+          cargo build --release --target wasm32-wasip1
+
+      # An ABI mismatch only shows up when the bundler loads the plugin, so
+      # compiling is not enough. Packed from a temp dir to keep the tracked
+      # .wasm out of the PR.
+      - name: Test the plugin in a real Next.js build
+        if: steps.plan.outputs.update == 'true' && matrix.e2e
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+        run: |
+          PACK="$RUNNER_TEMP/pack"
+          APP="$RUNNER_TEMP/app"
+          mkdir -p "$PACK" "$APP/app"
+          cp package.json README.md target/wasm32-wasip1/release/swc_plugin_react_source_string.wasm "$PACK/"
+          TARBALL=$(cd "$PACK" && npm pack --silent)
+
+          cd "$APP"
+          echo '{"name":"e2e","private":true}' > package.json
+          npm install --no-audit --no-fund "next@$VERSION" react@19 react-dom@19 "$PACK/$TARBALL"
+          cat > next.config.js <<'EOF'
+          module.exports = {
+            experimental: { swcPlugins: [["swc-plugin-react-source-string", { root: process.cwd() }]] },
+          };
+          EOF
+          cat > app/layout.jsx <<'EOF'
+          export default function RootLayout({ children }) {
+            return (<html><body>{children}</body></html>);
+          }
+          EOF
+          cat > app/page.jsx <<'EOF'
+          export default function Page() {
+            return <main>hello</main>;
+          }
+          EOF
+          npx next build
+          grep -q 'data-source="app/page.jsx:2"' .next/server/app/index.html \
+            || { echo "::error::data-source attribute missing from the build output"; exit 1; }
+
+      - name: Show changes
+        if: steps.plan.outputs.update == 'true'
+        run: git --no-pager diff -- . ':(exclude)Cargo.lock' ':(exclude)*.wasm'
 
       - name: Create Pull Request
-        if: steps.upstream_swc.outputs.version != steps.current_swc.outputs.version
+        if: steps.plan.outputs.update == 'true' && !inputs.dry_run
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           base: ${{ matrix.branch }}
           branch: "sync-swc/${{ matrix.branch }}"
-          commit-message: "chore: bump swc_core ${{ steps.current_swc.outputs.version }} → ${{ steps.upstream_swc.outputs.version }}"
-          title: "chore(${{ matrix.branch }}): bump swc_core to ${{ steps.upstream_swc.outputs.version }}"
+          add-paths: |
+            Cargo.toml
+            Cargo.lock
+            rust-toolchain.toml
+            package.json
+            README.md
+          commit-message: ${{ steps.plan.outputs.message }}
+          title: ${{ steps.plan.outputs.message }}
           body: |
-            ## swc_core version bump
+            | | Plugin | Upstream |
+            |---|---|---|
+            | `swc_core` | `${{ steps.plan.outputs.current_swc }}` | `${{ steps.plan.outputs.swc }}` |
 
-            | | Version |
-            |---|---|
-            | **Before** | `${{ steps.current_swc.outputs.version }}` |
-            | **After** | `${{ steps.upstream_swc.outputs.version }}` |
+            **Triggered by:** [${{ matrix.repo }}@v${{ steps.plan.outputs.version }}](https://github.com/${{ matrix.repo }}/releases/tag/v${{ steps.plan.outputs.version }})
+            **Peer range:** `${{ steps.plan.outputs.range }}`
 
-            **Triggered by:** [${{ matrix.repo }}@${{ steps.upstream.outputs.tag }}](https://github.com/${{ matrix.repo }}/releases/tag/${{ steps.upstream.outputs.tag }})
+            The sync job already ran clippy, built the WASM and, for Next.js, checked it in a real `next build`. Checks do not run on this PR because it was opened with `GITHUB_TOKEN`.
 
-            CI will verify the build compiles. Merge to release a new patch version.
+            Before merging, if older bundler releases lost support, add them to the README with plugin version `${{ steps.plan.outputs.plugin_version }}`.
+
+            Merging opens the release-please PR. Merging that one publishes to npm.
           labels: "dependencies,automated"
