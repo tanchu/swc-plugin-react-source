@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.2](https://github.com/tanchu/swc-plugin-react-source/compare/swc-plugin-react-source-string-v0.5.1...swc-plugin-react-source-string-v0.5.2) (2026-11-03)
+
+
+### Bug Fixes
+
+* publish to npm via trusted publishing ([08eb862](https://github.com/tanchu/swc-plugin-react-source/commit/08eb862a9155f1052ecaa39e48df40a6fcbf5629))
+
 ## [0.5.1](https://github.com/tanchu/swc-plugin-react-source/compare/swc-plugin-react-source-string-v0.5.0...swc-plugin-react-source-string-v0.5.1) (2026-11-03)
 
 
