@@ -3,8 +3,9 @@ name: CI
 on:
   pull_request:
     types: [opened, reopened, synchronize]
-  push:
-    branches: [main, next-15, next-16, rspack]
+  # Вызывается перед публикацией в npm (release.yml). На push в main и релизные
+  # ветки не запускается: код туда попадает через PR, где проверки уже прошли.
+  workflow_call:
 
 jobs:
   build:
