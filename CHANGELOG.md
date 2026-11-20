@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/tanchu/swc-plugin-react-source/compare/swc-plugin-react-source-string-v0.6.0...swc-plugin-react-source-string-v0.7.0) (2026-11-20)
+
+
+### Features
+
+* preferCallSite option, same as in the Babel and Vite plugins ([#15](https://github.com/tanchu/swc-plugin-react-source/issues/15)) ([57d297a](https://github.com/tanchu/swc-plugin-react-source/commit/57d297acb738a667b26f2333bfa179ecfe935365))
+
 ## [0.6.0](https://github.com/tanchu/swc-plugin-react-source/compare/swc-plugin-react-source-string-v0.5.2...swc-plugin-react-source-string-v0.6.0) (2026-11-20)
 
 
