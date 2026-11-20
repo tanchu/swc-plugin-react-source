@@ -14,6 +14,7 @@ struct PluginConfig {
     excluded: Option<Vec<String>>,
     root: Option<String>,
     libraries: Option<Vec<String>>,
+    prefer_call_site: Option<bool>,
 }
 
 #[derive(Default)]
@@ -21,6 +22,7 @@ struct ParsedConfig {
     excluded: HashSet<String>,
     root: Option<String>,
     libraries: Vec<String>,
+    prefer_call_site: bool,
 }
 
 fn parse_config(metadata: &TransformPluginProgramMetadata) -> ParsedConfig {
@@ -39,6 +41,7 @@ fn parse_config(metadata: &TransformPluginProgramMetadata) -> ParsedConfig {
             .unwrap_or_default(),
         root: config.root,
         libraries: config.libraries.unwrap_or_default(),
+        prefer_call_site: config.prefer_call_site.unwrap_or(false),
     }
 }
 
@@ -124,6 +127,8 @@ struct ReactSourceStringVisitor {
     excluded: HashSet<String>,
     libraries: Vec<String>,
     library_imports: Option<HashSet<String>>,
+    /// Insert the attribute before spread props, so a `data-source` passed in from the parent wins.
+    prefer_call_site: bool,
     source_map: swc_core::plugin::proxies::PluginSourceMapProxy,
     cwd: Option<String>,
 }
@@ -143,6 +148,7 @@ impl ReactSourceStringVisitor {
             excluded: config.excluded,
             libraries: config.libraries,
             library_imports: None,
+            prefer_call_site: config.prefer_call_site,
             source_map,
             cwd,
         }
@@ -231,7 +237,11 @@ impl VisitMut for ReactSourceStringVisitor {
         }
 
         if let Some(attr) = self.make_data_source_attr(el.span) {
-            el.attrs.push(attr);
+            if self.prefer_call_site {
+                el.attrs.insert(0, attr);
+            } else {
+                el.attrs.push(attr);
+            }
         }
     }
 }
