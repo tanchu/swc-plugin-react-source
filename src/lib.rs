@@ -1,4 +1,4 @@
-//! SWC plugin: adds `data-source="path:line"` to JSX elements (HTML and configured UI library components).
+//! SWC plugin: adds `data-source="path:line"` to JSX elements (HTML elements and components).
 //! Equivalent to the Babel plugin `babel-plugin-react-source-string`.
 
 use serde::Deserialize;
@@ -13,31 +13,24 @@ use swc_core::plugin::{plugin_transform, proxies::TransformPluginProgramMetadata
 struct PluginConfig {
     excluded: Option<Vec<String>>,
     root: Option<String>,
+    libraries: Option<Vec<String>>,
 }
 
+#[derive(Default)]
 struct ParsedConfig {
     excluded: HashSet<String>,
     root: Option<String>,
+    libraries: Vec<String>,
 }
 
 fn parse_config(metadata: &TransformPluginProgramMetadata) -> ParsedConfig {
     let config_str = match metadata.get_transform_plugin_config() {
         Some(s) => s,
-        None => {
-            return ParsedConfig {
-                excluded: HashSet::new(),
-                root: None,
-            }
-        }
+        None => return ParsedConfig::default(),
     };
     let config: PluginConfig = match serde_json::from_str(&config_str) {
         Ok(c) => c,
-        Err(_) => {
-            return ParsedConfig {
-                excluded: HashSet::new(),
-                root: None,
-            }
-        }
+        Err(_) => return ParsedConfig::default(),
     };
     ParsedConfig {
         excluded: config
@@ -45,7 +38,67 @@ fn parse_config(metadata: &TransformPluginProgramMetadata) -> ParsedConfig {
             .map(|v| v.into_iter().map(|s| s.to_lowercase()).collect())
             .unwrap_or_default(),
         root: config.root,
+        libraries: config.libraries.unwrap_or_default(),
     }
+}
+
+/// Same rule as the Babel and Vite plugins: the package itself or any of its subpaths.
+fn from_library(source: &str, libraries: &[String]) -> bool {
+    libraries
+        .iter()
+        .any(|lib| source == lib || source.starts_with(&format!("{lib}/")))
+}
+
+/// Lowercase tags (`<div>`, `<svg:rect>`) are HTML/SVG elements; everything else is a component.
+fn is_html_element(name: &JSXElementName) -> bool {
+    match name {
+        JSXElementName::Ident(i) => i.sym.chars().next().is_some_and(|c| c.is_lowercase()),
+        JSXElementName::JSXNamespacedName(_) => true,
+        _ => false,
+    }
+}
+
+/// The identifier that decides whether the element is a component: `UI` for `<UI.Button>`.
+fn root_name(name: &JSXElementName) -> Option<String> {
+    match name {
+        JSXElementName::Ident(i) => Some(i.sym.to_string()),
+        JSXElementName::JSXNamespacedName(n) => Some(n.ns.sym.to_string()),
+        JSXElementName::JSXMemberExpr(m) => {
+            let mut object = &m.obj;
+            loop {
+                match object {
+                    JSXObject::JSXMemberExpr(inner) => object = &inner.obj,
+                    JSXObject::Ident(i) => return Some(i.sym.to_string()),
+                    #[cfg(swc_ast_unknown)]
+                    _ => return None,
+                }
+            }
+        }
+        #[cfg(swc_ast_unknown)]
+        _ => None,
+    }
+}
+
+fn library_imports(module: &Module, libraries: &[String]) -> HashSet<String> {
+    let mut imports = HashSet::new();
+    for item in &module.body {
+        if let ModuleItem::ModuleDecl(ModuleDecl::Import(decl)) = item {
+            if !from_library(&decl.src.value.to_string_lossy(), libraries) {
+                continue;
+            }
+            for specifier in &decl.specifiers {
+                let local = match specifier {
+                    ImportSpecifier::Named(s) => &s.local,
+                    ImportSpecifier::Default(s) => &s.local,
+                    ImportSpecifier::Namespace(s) => &s.local,
+                    #[cfg(swc_ast_unknown)]
+                    _ => continue,
+                };
+                imports.insert(local.sym.to_string());
+            }
+        }
+    }
+    imports
 }
 
 fn strip_virtual_prefix(filename: &str) -> &str {
@@ -69,6 +122,8 @@ fn relative_path(cwd: &str, filename: &str) -> String {
 
 struct ReactSourceStringVisitor {
     excluded: HashSet<String>,
+    libraries: Vec<String>,
+    library_imports: Option<HashSet<String>>,
     source_map: swc_core::plugin::proxies::PluginSourceMapProxy,
     cwd: Option<String>,
 }
@@ -86,6 +141,8 @@ impl ReactSourceStringVisitor {
         });
         Self {
             excluded: config.excluded,
+            libraries: config.libraries,
+            library_imports: None,
             source_map,
             cwd,
         }
@@ -143,6 +200,13 @@ impl ReactSourceStringVisitor {
 }
 
 impl VisitMut for ReactSourceStringVisitor {
+    fn visit_mut_module(&mut self, module: &mut Module) {
+        if !self.libraries.is_empty() {
+            self.library_imports = Some(library_imports(module, &self.libraries));
+        }
+        module.visit_mut_children_with(self);
+    }
+
     fn visit_mut_jsx_opening_element(&mut self, el: &mut JSXOpeningElement) {
         el.visit_mut_children_with(self);
 
@@ -159,6 +223,13 @@ impl VisitMut for ReactSourceStringVisitor {
             return;
         }
 
+        if let Some(imports) = &self.library_imports {
+            let from_imports = root_name(&el.name).is_some_and(|n| imports.contains(&n));
+            if !is_html_element(&el.name) && !from_imports {
+                return;
+            }
+        }
+
         if let Some(attr) = self.make_data_source_attr(el.span) {
             el.attrs.push(attr);
         }
@@ -173,4 +244,24 @@ pub fn process_transform(program: Program, metadata: TransformPluginProgramMetad
     let mut program = program;
     program.visit_mut_with(&mut visitor);
     program
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_library_matches_package_and_subpaths() {
+        let libs = vec!["@mui/material".to_string()];
+        assert!(from_library("@mui/material", &libs));
+        assert!(from_library("@mui/material/Button", &libs));
+        assert!(!from_library("@mui/material-next", &libs));
+        assert!(from_library("@mui/icons-material", &["@mui".to_string()]));
+    }
+
+    #[test]
+    fn relative_path_parity() {
+        assert_eq!(relative_path("/proj/", "/proj/src/a.tsx"), "src/a.tsx");
+        assert_eq!(relative_path("/other", "/proj/a.tsx"), "/proj/a.tsx");
+    }
 }
