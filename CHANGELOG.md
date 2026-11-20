@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/tanchu/swc-plugin-react-source/compare/swc-plugin-react-source-string-v0.7.0...swc-plugin-react-source-string-v0.7.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* never tag Fragment and React.Fragment ([#17](https://github.com/tanchu/swc-plugin-react-source/issues/17)) ([c641c03](https://github.com/tanchu/swc-plugin-react-source/commit/c641c03d1c66b5356f6bf7a733dfb7191b0229a1))
+
 ## [0.7.0](https://github.com/tanchu/swc-plugin-react-source/compare/swc-plugin-react-source-string-v0.6.0...swc-plugin-react-source-string-v0.7.0) (2026-11-20)
 
 
