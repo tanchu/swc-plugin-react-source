@@ -62,10 +62,11 @@ swcPlugins: [
 | ---------- | ---------- | ------- | -------------------------------------------------------- |
 | `excluded` | `string[]` | `[]`    | Component/element names to skip (case-insensitive).      |
 | `root`     | `string`   | —       | Project root for relative paths. Use `process.cwd()`. Without it paths will be absolute. |
+| `libraries` | `string[]` | — (tag all) | Tag only components imported from these packages or their subpaths (`@mui/material/Button` matches `@mui/material`); HTML elements are always tagged. |
 
 ## How it works
 
-The plugin adds a `data-source` attribute to **every** JSX opening element — both HTML tags (`<div>`, `<span>`) and React components (`<Dialog>`, `<Pencil>`, `<Link>`). Elements listed in `excluded` are skipped.
+The plugin adds a `data-source` attribute to **every** JSX opening element — both HTML tags (`<div>`, `<span>`) and React components (`<Dialog>`, `<Pencil>`, `<Link>`). Elements listed in `excluded` are skipped; with `libraries` set, only components imported from those packages (named, default or namespace imports, so `<UI.Button>` counts when `UI` comes from one of them) are tagged.
 
 The attribute value is `relative/path/to/file.tsx:line`, making it easy to locate any DOM node back to its source from DevTools.
 
