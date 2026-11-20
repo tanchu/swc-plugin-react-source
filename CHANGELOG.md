@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.0](https://github.com/tanchu/swc-plugin-react-source/compare/swc-plugin-react-source-string-v0.5.2...swc-plugin-react-source-string-v0.6.0) (2026-11-20)
+
+
+### Features
+
+* optional libraries option, same as in the Babel and Vite plugins ([0cece49](https://github.com/tanchu/swc-plugin-react-source/commit/0cece49df2ca120270ab9dfe0012d9606dd36aa9))
+* optional libraries option, same as in the Babel and Vite plugins ([a8f66c6](https://github.com/tanchu/swc-plugin-react-source/commit/a8f66c6878247981308714ca0b90efd1d4c81a97))
+
 ## [0.5.2](https://github.com/tanchu/swc-plugin-react-source/compare/swc-plugin-react-source-string-v0.5.1...swc-plugin-react-source-string-v0.5.2) (2026-11-03)
 
 
