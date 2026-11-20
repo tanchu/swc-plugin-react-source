@@ -104,6 +104,15 @@ fn library_imports(module: &Module, libraries: &[String]) -> HashSet<String> {
     imports
 }
 
+/// `<Fragment>` and `<React.Fragment>` accept only `key` and `children`; React warns about any other prop.
+fn is_fragment(name: &JSXElementName) -> bool {
+    match name {
+        JSXElementName::Ident(i) => &*i.sym == "Fragment",
+        JSXElementName::JSXMemberExpr(m) => &*m.prop.sym == "Fragment",
+        _ => false,
+    }
+}
+
 fn strip_virtual_prefix(filename: &str) -> &str {
     if filename.starts_with('[') {
         if let Some(pos) = filename.find("]/") {
@@ -221,7 +230,7 @@ impl VisitMut for ReactSourceStringVisitor {
             None => return,
         };
 
-        if self.excluded.contains(&element_name.to_lowercase()) {
+        if is_fragment(&el.name) || self.excluded.contains(&element_name.to_lowercase()) {
             return;
         }
 
@@ -267,6 +276,21 @@ mod tests {
         assert!(from_library("@mui/material/Button", &libs));
         assert!(!from_library("@mui/material-next", &libs));
         assert!(from_library("@mui/icons-material", &["@mui".to_string()]));
+    }
+
+    #[test]
+    fn fragments_are_detected() {
+        use swc_core::common::DUMMY_SP;
+        let ident = |s: &str| JSXElementName::Ident(Ident::new_no_ctxt(s.into(), DUMMY_SP));
+        assert!(is_fragment(&ident("Fragment")));
+        assert!(!is_fragment(&ident("Fragments")));
+        assert!(!is_fragment(&ident("div")));
+        let member = JSXElementName::JSXMemberExpr(JSXMemberExpr {
+            span: DUMMY_SP,
+            obj: JSXObject::Ident(Ident::new_no_ctxt("React".into(), DUMMY_SP)),
+            prop: IdentName::new("Fragment".into(), DUMMY_SP),
+        });
+        assert!(is_fragment(&member));
     }
 
     #[test]

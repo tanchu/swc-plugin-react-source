@@ -32,7 +32,7 @@ const nextConfig: NextConfig = {
       [
         "swc-plugin-react-source-string",
         {
-          excluded: ["Fragment", "Slot"],
+          excluded: ["Slot"],
           root: process.cwd(),
         },
       ],
@@ -49,7 +49,7 @@ export default nextConfig;
 swcPlugins: [
   ...(process.env.NODE_ENV === "development"
     ? [["swc-plugin-react-source-string", {
-          excluded: ["Fragment"],
+          excluded: ["Slot"],
           root: process.cwd()
         }]]
     : []),
@@ -67,7 +67,7 @@ swcPlugins: [
 
 ## How it works
 
-The plugin adds a `data-source` attribute to **every** JSX opening element — both HTML tags (`<div>`, `<span>`) and React components (`<Dialog>`, `<Pencil>`, `<Link>`). Elements listed in `excluded` are skipped; with `libraries` set, only components imported from those packages (named, default or namespace imports, so `<UI.Button>` counts when `UI` comes from one of them) are tagged.
+The plugin adds a `data-source` attribute to **every** JSX opening element — both HTML tags (`<div>`, `<span>`) and React components (`<Dialog>`, `<Pencil>`, `<Link>`). Elements listed in `excluded` are skipped; with `libraries` set, only components imported from those packages (named, default or namespace imports, so `<UI.Button>` counts when `UI` comes from one of them) are tagged. Fragments are never tagged: `<>`, `<Fragment>` and `<React.Fragment>` accept only `key` and `children`, and React warns about any other prop.
 
 The attribute value is `relative/path/to/file.tsx:line`, making it easy to locate any DOM node back to its source from DevTools.
 
@@ -178,7 +178,7 @@ import path from "path";
 swcPlugins: [
   [
     path.resolve(__dirname, "./target/wasm32-wasip1/release/swc_plugin_react_source_string.wasm"),
-    { excluded: ["Fragment"], root: process.cwd() },
+    { excluded: ["Slot"], root: process.cwd() },
   ],
 ],
 ```
