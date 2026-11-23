@@ -127,7 +127,11 @@ fn add_overlay_import(module: &mut Module) {
             ModuleItem::Stmt(Stmt::Expr(ExprStmt { expr, .. })) if matches!(&**expr, Expr::Lit(Lit::Str(_)))
         )
     };
-    let at = module.body.iter().take_while(|item| is_directive(item)).count();
+    let at = module
+        .body
+        .iter()
+        .take_while(|item| is_directive(item))
+        .count();
     let import = ImportDecl {
         span: DUMMY_SP,
         specifiers: vec![],
