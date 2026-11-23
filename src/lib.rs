@@ -15,6 +15,7 @@ struct PluginConfig {
     root: Option<String>,
     libraries: Option<Vec<String>>,
     prefer_call_site: Option<bool>,
+    overlay: Option<bool>,
 }
 
 #[derive(Default)]
@@ -23,6 +24,7 @@ struct ParsedConfig {
     root: Option<String>,
     libraries: Vec<String>,
     prefer_call_site: bool,
+    overlay: bool,
 }
 
 fn parse_config(metadata: &TransformPluginProgramMetadata) -> ParsedConfig {
@@ -42,6 +44,7 @@ fn parse_config(metadata: &TransformPluginProgramMetadata) -> ParsedConfig {
         root: config.root,
         libraries: config.libraries.unwrap_or_default(),
         prefer_call_site: config.prefer_call_site.unwrap_or(false),
+        overlay: config.overlay.unwrap_or(false),
     }
 }
 
@@ -113,6 +116,35 @@ fn is_fragment(name: &JSXElementName) -> bool {
     }
 }
 
+/// A plain script (no imports or exports) shipped in the npm package, so it loads the same as ESM or CommonJS.
+const OVERLAY_MODULE: &str = "swc-plugin-react-source-string/overlay.js";
+
+/// `import "swc-plugin-react-source-string/overlay.js";` after the leading directives (`"use client"` must stay first).
+fn add_overlay_import(module: &mut Module) {
+    let is_directive = |item: &ModuleItem| {
+        matches!(
+            item,
+            ModuleItem::Stmt(Stmt::Expr(ExprStmt { expr, .. })) if matches!(&**expr, Expr::Lit(Lit::Str(_)))
+        )
+    };
+    let at = module.body.iter().take_while(|item| is_directive(item)).count();
+    let import = ImportDecl {
+        span: DUMMY_SP,
+        specifiers: vec![],
+        src: Box::new(Str {
+            span: DUMMY_SP,
+            value: OVERLAY_MODULE.into(),
+            raw: None,
+        }),
+        type_only: false,
+        with: None,
+        phase: ImportPhase::Evaluation,
+    };
+    module
+        .body
+        .insert(at, ModuleItem::ModuleDecl(ModuleDecl::Import(import)));
+}
+
 fn strip_virtual_prefix(filename: &str) -> &str {
     if filename.starts_with('[') {
         if let Some(pos) = filename.find("]/") {
@@ -138,6 +170,9 @@ struct ReactSourceStringVisitor {
     library_imports: Option<HashSet<String>>,
     /// Insert the attribute before spread props, so a `data-source` passed in from the parent wins.
     prefer_call_site: bool,
+    /// Import the dev overlay into files that got at least one attribute.
+    overlay: bool,
+    tagged: bool,
     source_map: swc_core::plugin::proxies::PluginSourceMapProxy,
     cwd: Option<String>,
 }
@@ -158,6 +193,8 @@ impl ReactSourceStringVisitor {
             libraries: config.libraries,
             library_imports: None,
             prefer_call_site: config.prefer_call_site,
+            overlay: config.overlay,
+            tagged: false,
             source_map,
             cwd,
         }
@@ -220,6 +257,9 @@ impl VisitMut for ReactSourceStringVisitor {
             self.library_imports = Some(library_imports(module, &self.libraries));
         }
         module.visit_mut_children_with(self);
+        if self.overlay && self.tagged {
+            add_overlay_import(module);
+        }
     }
 
     fn visit_mut_jsx_opening_element(&mut self, el: &mut JSXOpeningElement) {
@@ -251,6 +291,7 @@ impl VisitMut for ReactSourceStringVisitor {
             } else {
                 el.attrs.push(attr);
             }
+            self.tagged = true;
         }
     }
 }
@@ -291,6 +332,36 @@ mod tests {
             prop: IdentName::new("Fragment".into(), DUMMY_SP),
         });
         assert!(is_fragment(&member));
+    }
+
+    #[test]
+    fn overlay_import_goes_after_directives() {
+        let directive = |value: &str| {
+            ModuleItem::Stmt(Stmt::Expr(ExprStmt {
+                span: DUMMY_SP,
+                expr: Box::new(Expr::Lit(Lit::Str(Str {
+                    span: DUMMY_SP,
+                    value: value.into(),
+                    raw: None,
+                }))),
+            }))
+        };
+        let empty = ModuleItem::Stmt(Stmt::Empty(EmptyStmt { span: DUMMY_SP }));
+        let mut module = Module {
+            span: DUMMY_SP,
+            body: vec![directive("use client"), empty],
+            shebang: None,
+        };
+        add_overlay_import(&mut module);
+        assert_eq!(module.body.len(), 3);
+        assert!(matches!(module.body[0], ModuleItem::Stmt(_)));
+        match &module.body[1] {
+            ModuleItem::ModuleDecl(ModuleDecl::Import(import)) => {
+                assert_eq!(import.src.value.to_string_lossy(), OVERLAY_MODULE);
+                assert!(import.specifiers.is_empty());
+            }
+            other => panic!("expected the overlay import, got {other:?}"),
+        }
     }
 
     #[test]
