@@ -5,6 +5,7 @@
   "main": "swc_plugin_react_source_string.wasm",
   "files": [
     "swc_plugin_react_source_string.wasm",
+    "overlay.js",
     "README.md"
   ],
   "keywords": [
@@ -14,7 +15,17 @@
     "jsx",
     "data-source",
     "debug",
-    "nextjs"
+    "nextjs",
+    "source",
+    "devtools",
+    "click-to-source",
+    "ai",
+    "ai-agent",
+    "llm",
+    "cursor",
+    "claude-code",
+    "react-19",
+    "_debugSource"
   ],
   "license": "MIT",
   "repository": {
