@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/tanchu/swc-plugin-react-source/compare/swc-plugin-react-source-string-v0.7.1...swc-plugin-react-source-string-v0.8.0) (2026-11-23)
+
+
+### Features
+
+* overlay option for AI agents — Alt+click copies path:line, window.__REACT_SOURCE__ ([#19](https://github.com/tanchu/swc-plugin-react-source/issues/19)) ([6b43deb](https://github.com/tanchu/swc-plugin-react-source/commit/6b43debdd62ebad43f3c6068a4e4b6e7bb8455d1))
+
 ## [0.7.1](https://github.com/tanchu/swc-plugin-react-source/compare/swc-plugin-react-source-string-v0.7.0...swc-plugin-react-source-string-v0.7.1) (2026-11-20)
 
 
