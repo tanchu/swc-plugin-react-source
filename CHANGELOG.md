@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/tanchu/swc-plugin-react-source/compare/swc-plugin-react-source-string-v0.8.0...swc-plugin-react-source-string-v0.8.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* **overlay:** name images and icon buttons by alt and aria-label ([#21](https://github.com/tanchu/swc-plugin-react-source/issues/21)) ([d22559e](https://github.com/tanchu/swc-plugin-react-source/commit/d22559eb7dde6a340f1a54d8603dc84581a781aa))
+
 ## [0.8.0](https://github.com/tanchu/swc-plugin-react-source/compare/swc-plugin-react-source-string-v0.7.1...swc-plugin-react-source-string-v0.8.0) (2026-11-23)
 
 
