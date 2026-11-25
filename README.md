@@ -2,21 +2,20 @@
 
 SWC plugin that adds `data-source="path:line"` attributes to **every JSX element** for debugging — HTML tags, React components, icons, anything.
 
-Rust-based equivalent of [babel-plugin-react-source-string](https://github.com/tanchu/babel-plugin-react-source-string) — designed for use with Next.js and Rspack.
+Rust-based equivalent of [babel-plugin-react-source-string](https://github.com/tanchu/babel-plugin-react-source-string) — designed for use with Next.js.
 
 ## Installation
 
-Choose the tag that matches your bundler:
+Install the version that matches your Next.js:
 
-| Bundler | Install command |
-|---|---|
-| **Next.js 16.4.x** | `npm install swc-plugin-react-source-string@next-16` |
-| **Next.js 16.1.7 – 16.3.8** | `npm install swc-plugin-react-source-string@0.4.0` |
-| **Next.js 15.x** | `npm install swc-plugin-react-source-string@next-15` |
-| **Rspack** | `npm install swc-plugin-react-source-string@rspack` |
+| Next.js | Install command | Notes |
+|---|---|---|
+| **16.4.x** | `npm install -D swc-plugin-react-source-string` | `latest`, also tagged `next-16` |
+| **16.1.7 – 16.3.8** | `npm install -D swc-plugin-react-source-string@0.4.0` | older build: no `libraries`, `preferCallSite` or `overlay` |
+| **15.x and older, Rspack** | no matching build is published | use [babel-plugin-react-source-string](https://github.com/tanchu/babel-plugin-react-source-string) with a Babel config or `babel-loader` |
 
 > The SWC plugin ABI is tightly coupled to `swc_core` inside the bundler.
-> Using the wrong tag will cause a `Mismatch` error at startup.
+> Using the wrong version will cause a `Mismatch` error at startup.
 
 ## Usage with Next.js
 
@@ -206,14 +205,13 @@ so the reference points to the page that uses the wrapper.
 
 ## Compatibility table
 
-Each npm dist-tag is built against the exact `swc_core` version required by that bundler.
-The plugin is automatically updated when the upstream bundler bumps its `swc_core`.
+Each release is built against the exact `swc_core` version used by Next.js.
+The `sync-swc` workflow checks every Monday and opens a PR when Next.js bumps its `swc_core`.
 
-| npm tag | Bundler | `swc_core` | Rust toolchain |
-|---|---|---|---|
-| `next-16` · `latest` | Next.js 16.4.x | `79.0.0` | `nightly-2026-08-20` |
-| `next-15` | Next.js 15.x | `50.x` | `nightly-2025-05-06` |
-| `rspack` | Rspack latest | varies | `nightly-2025-05-06` |
+| Plugin | npm tag | Next.js | `swc_core` | Rust toolchain |
+|---|---|---|---|---|
+| `0.5.0` and later | `latest` · `next-16` | 16.4.x | `79.0.0` | `nightly-2026-08-20` |
+| `0.4.0` | — | 16.1.7 – 16.3.8 | `57.0.0` | `nightly-2025-05-06` |
 
 Next.js 16.4.0 changed the plugin ABI: `0.5.x` fails on 16.3.x with
 `Failed to deserialize program received from host`, and `0.4.0` fails the same way on 16.4.x.
